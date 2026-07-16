@@ -54,7 +54,7 @@ Keep responses concise but thorough. Format code with proper markdown code block
             },
             null,
             this._disposables
-        )
+        );
 
         // Clean up when panel is closed
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
@@ -160,7 +160,7 @@ Keep responses concise but thorough. Format code with proper markdown code block
         this._panel.dispose();
         while (this._disposables.length) {
             const disposable = this._disposables.pop();
-            if (disposable) disposable.dispose();
+            if (disposable) {disposable.dispose();}
         }
     }
 
