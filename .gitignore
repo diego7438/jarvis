@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+out/
+
+# Model weights (too large + licensing — see README for download instructions)
+*.gguf
+models/*.gguf
+
+# macOS
+.DS_Store
+
+# VS Code editor settings (personal, not project config)
+.vscode/
+
+# Extension packaging output
+*.vsix
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment/secrets (good habit even if you don't have any yet)
+.env
+.env.local
+llama.cpp/
