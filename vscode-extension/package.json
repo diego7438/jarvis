@@ -16,6 +16,11 @@
       {
         "command": "jarvis.ask",
         "title": "Ask JARVIS"
+      },
+
+      {
+        "command": "jarvis.open",
+        "title": "Open JARVIS"
       }
     ],
     "menus": {

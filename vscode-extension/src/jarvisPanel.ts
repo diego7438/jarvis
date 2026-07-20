@@ -152,6 +152,51 @@ Keep responses concise but thorough. Format code with proper markdown code block
             command: 'setThinking',
             value: true
         });
+
+        try {
+            const response = await fetch('http://127.0.0.1:8080/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    model: 'llama',
+                    messages: [
+                        { role: 'system', content: this._systemPrompt },
+                        ...this._conversationHistory
+                    ],
+                    max_tokens: 1024
+                })
+            });
+
+            const data = await response.json() as {
+                choices: { message: { content: string }}[]
+            };
+
+            const answer = data.choices[0].message.content;
+
+            this._conversationHistory.push({
+                role: 'assistant',
+                content: answer
+            });
+
+            this._panel.webview.postMessage({
+                command: 'addMessage',
+                role: 'assistant',
+                content: answer
+            });
+
+        } catch (error) {
+            console.error('JARVIS fetch error:', error);
+            this._panel.webview.postMessage({
+                command: 'addMessage',
+                role: 'error',
+                content: 'Cannot reach local server. Is llama-server running on port 8080?'
+            });
+        } finally {
+            this._panel.webview.postMessage({
+                command: 'setThinking',
+                value: false
+            });
+        }
     }
 
     // Clean up resources
@@ -339,7 +384,7 @@ Keep responses concise but thorough. Format code with proper markdown code block
             line-height: 1.5;
         }
 
-        #userInput: focus {
+        #userInput:focus {
             border-color: #4fc3f7;
             box-shadow: 0 0 8px rgba(79, 195, 247, 0.2);
         }
@@ -357,7 +402,7 @@ Keep responses concise but thorough. Format code with proper markdown code block
             transition: background 0.2s;
         }
 
-        #sendBtn: hover {
+        #sendBtn:hover {
             background: #3fc3f7;
             box-shadow: 0 0 12px rgba(79, 195, 247, 0.4);
         }
@@ -396,6 +441,9 @@ Keep responses concise but thorough. Format code with proper markdown code block
     </div>
 
     <script>
+        
+        // Aquire once at the top - never call this more than once
+        const vscode = acquireVsCodeApi();
         const messagesDiv = document.getElementById('messages');
         const thinkingDiv = document.getElementById('thinking');
 
@@ -449,7 +497,7 @@ Keep responses concise but thorough. Format code with proper markdown code block
             console.log('JARVIS: Sending message:', text);
 
             // Send to TypeScript backend
-            vscode.acquireVsCodeApi().postMessage({
+            vscode.postMessage({
                 command: 'userMessage',
                 text: text
             });

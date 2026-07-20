@@ -47,6 +47,13 @@ export function activate(context: vscode.ExtensionContext) {
 		// Display a message box to the user
 
 	context.subscriptions.push(disposable);
+
+	// Command to just open JARVIS panel directly
+	const openJarvis = vscode.commands.registerCommand('jarvis.open', () => {
+		JarvisPanel.createOrShow(context.extensionUri);
+	});
+
+	context.subscriptions.push(disposable, openJarvis);
 }
 
 // This method is called when your extension is deactivated
