@@ -214,6 +214,7 @@ Keep responses concise but thorough. Format code with proper markdown code block
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JARVIS</title>
@@ -441,6 +442,9 @@ Keep responses concise but thorough. Format code with proper markdown code block
     </div>
 
     <script>
+
+        console.log('SCRIPT is running!');
+        console.log('sendBtn element:', document.getElementById('sendBtn'));
         
         // Aquire once at the top - never call this more than once
         const vscode = acquireVsCodeApi();
@@ -489,6 +493,9 @@ Keep responses concise but thorough. Format code with proper markdown code block
         });
 
         function sendMessage() {
+
+            alert('sendMessage was called!'); // temporary debug line
+
             const input = document.getElementById('userInput');
             const text = input.value.trim();
 
