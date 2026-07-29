@@ -224,7 +224,6 @@ Keep responses concise but thorough. Format code with proper markdown code block
     }
 <html lang="en">
 <head>
-    // CSP meta tag
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' ${this._panel.webview.cspSource}; style-src 'unsafe-inline'; connect-src http://127.0.0.1:8080;">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
