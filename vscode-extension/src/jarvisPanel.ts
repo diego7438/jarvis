@@ -5,6 +5,7 @@ export class JarvisPanel {
     // Track the single panel instance - only one JARVIS panel open at a time
     public static currentPanel: JarvisPanel | undefined;
     private readonly _panel: vscode.WebviewPanel;
+    private readonly _extensionUri: vscode.Uri;
     private _conversationHistory: { role: string; content: string }[] = [];
     private _disposables: vscode.Disposable[] = [];
     
@@ -33,14 +34,18 @@ Keep responses concise but thorough. Format code with proper markdown code block
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
+                localResourceRoots: [
+                    vscode.Uri.joinPath(extensionUri, 'node_modules', 'marked', 'lib')
+                ]
             }
         );
 
-        JarvisPanel.currentPanel = new JarvisPanel(panel);
+        JarvisPanel.currentPanel = new JarvisPanel(panel, extensionUri);
     }
 
-    private constructor(panel: vscode.WebviewPanel) {
+    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
         this._panel = panel;
+        this._extensionUri = extensionUri;
         this._panel.webview.html = this._getHtmlContent();
 
         // Listen for messages from the webview
@@ -211,10 +216,16 @@ Keep responses concise but thorough. Format code with proper markdown code block
 
     // The entire chat UI - HTML/CSS/JS running inside VS Code
     private _getHtmlContent(): string {
+        const markedUri = this._panel.webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'node_modules', 'marked', 'lib', 'marked.umd.js')
+        );
+
         return `<!DOCTYPE html>
+    }
 <html lang="en">
 <head>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
+    // CSP meta tag
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' ${this._panel.webview.cspSource}; style-src 'unsafe-inline'; connect-src http://127.0.0.1:8080;">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JARVIS</title>
@@ -333,6 +344,28 @@ Keep responses concise but thorough. Format code with proper markdown code block
             overflow-x: auto;
             margin: 8px 0;
             font-size: 12px;
+            white-space: pre-wrap;
+        }
+
+        .message.assistant code {
+            background: #1a1a2e;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #4fc3f7;
+        }
+
+        .message.assistant pre code {
+            background: none;
+            padding: 0;
+            color: #a5d6a7;
+        }
+
+        .message.assistant p {
+            margin-bottom: 8px;
+        }
+
+        .message.assistant strong {
+            color: #4fc3f7
         }
 
         code { font-family: 'Courier New', monospace; }
@@ -441,6 +474,8 @@ Keep responses concise but thorough. Format code with proper markdown code block
         🔒 100% LOCAL · ZERO DATA TRANSMISSION · METAL GPU ACCELERATED
     </div>
 
+    <script src="${markedUri}"></script>
+
     <script>
 
         console.log('SCRIPT is running!');
@@ -463,8 +498,15 @@ Keep responses concise but thorough. Format code with proper markdown code block
                 label.textContent = message.role == 'user' ? 'YOU':
                                     message.role === 'error' ? 'ERROR': 'JARVIS';
                 
-                const content = document.createElement('div');
-                content.textContent = message.content;
+                const content = document.createelement('div');
+                if (message.role === 'assistant') {
+                    // Render markdown for JARVIS responses (code blocks, bold, etc.)
+                    content.innerHTML = marked.parse(message.content);    
+                } else {
+                    // Keep user messages and errors as plain text (safer, no markdown needed)
+                    content.textContent = message.content;    
+                }
+                
 
                 div.appendChild(label);
                 div.appendChild(content);
