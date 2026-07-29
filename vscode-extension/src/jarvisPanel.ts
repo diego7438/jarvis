@@ -498,7 +498,7 @@ Keep responses concise but thorough. Format code with proper markdown code block
                 label.textContent = message.role == 'user' ? 'YOU':
                                     message.role === 'error' ? 'ERROR': 'JARVIS';
                 
-                const content = document.createelement('div');
+                const content = document.createElement('div');
                 if (message.role === 'assistant') {
                     // Render markdown for JARVIS responses (code blocks, bold, etc.)
                     content.innerHTML = marked.parse(message.content);    
