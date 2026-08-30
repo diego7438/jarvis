@@ -35,7 +35,8 @@ Keep responses concise but thorough. Format code with proper markdown code block
                 enableScripts: true,
                 retainContextWhenHidden: true,
                 localResourceRoots: [
-                    vscode.Uri.joinPath(extensionUri, 'node_modules', 'marked', 'lib')
+                    vscode.Uri.joinPath(extensionUri, 'node_modules', 'marked', 'lib'),
+                    vscode.Uri.joinPath(extensionUri, 'src', 'webview')
                 ]
             }
         );
@@ -214,232 +215,28 @@ Keep responses concise but thorough. Format code with proper markdown code block
         }
     }
 
-    // The entire chat UI - HTML/CSS/JS running inside VS Code
+    // The entire chat UI
     private _getHtmlContent(): string {
         const markedUri = this._panel.webview.asWebviewUri(
             vscode.Uri.joinPath(this._extensionUri, 'node_modules', 'marked', 'lib', 'marked.umd.js')
         );
+        const mainUri = this._panel.webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'src', 'webview', 'main.js')
+        );
+        const stylesUri = this._panel.webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'src', 'webview', 'styles.css')
+        );
 
         return `<!DOCTYPE html>
-    }
+    
 <html lang="en">
 <head>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' ${this._panel.webview.cspSource}; style-src 'unsafe-inline'; connect-src http://127.0.0.1:8080;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ${this._panel.webview.cspSource}; style-src 'unsafe-inline' ${this._panel.webview.cspSource}; connect-src http://127.0.0.1:8080;">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JARVIS</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+    <link rel="stylesheet" href="${stylesUri}">
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #0a0a0f;
-            color: #e0e0e0;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        #header {
-            padding: 16px 20px;
-            background: #0d0d1a;
-            border-bottom: 1px solid #1a3a5c;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        #header h1 {
-            font-size: 18px;
-            font-weight: 600;
-            color: #4fc3f7;
-            letter-spacing: 3px;
-        }
-
-        #header .subtitle {
-            font-size: 11px;
-            color: #546e7a;
-            letter-spacing: 1px;
-        }
-
-        .arc-reactor {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: radial-gradient(circle, #4fc3f7, #0288d1, #01579b);
-            box-shadow: 0 0 15px #4fc3f7, 0 0 30px #0288d1;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { box-shadow: 0 0 15px #4fc3f7, 0 0 30px #0288d1; }
-            50% { box-shadow: 0 0 25px #4fc3f7, 0 0 50px #0288d1; }
-        }
-
-        #messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .message {
-            max-width: 90%;
-            padding: 12px 16px;
-            border-radius: 12px;
-            font-size: 13px;
-            line-height: 1.6;
-            animation: fadeIn 0.35s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .message.user {
-            background: #1a2a3a;
-            border: 1px solid #1a3a5c;
-            align-self: flex-end;
-            color: #90caf9;
-            font-family: 'Courier New', monospace; 
-            font-size: 12px;
-            white-space: pre-wrap;
-        }
-
-        .message.assistant {
-            background: #0d1a0d;
-            border: 1px solid #1a3a1a;
-            align-self: flex-start;
-            color: #e0e0e0;
-        }
-
-        .message.error {
-            background: #1a0d0d;
-            border: 1px solid #3a1a1a;
-            align-self: flex-start;
-            color: #ef9a9a;
-        }
-
-        .role-label {
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 2px;
-            margin-bottom: 6px;
-            opacity: 0.7;
-        }
-
-        .user .role-label { color: #4fc3f7; }
-        .assistant .role-label { color: #81c784; }
-        .error .role-label { color: #ef9a9a; }
-
-        pre {
-            background: #111;
-            border: 1px solid #222;
-            border-radius: 6px;
-            padding: 10px;
-            overflow-x: auto;
-            margin: 8px 0;
-            font-size: 12px;
-            white-space: pre-wrap;
-        }
-
-        .message.assistant code {
-            background: #1a1a2e;
-            padding: 2px 6px;
-            border-radius: 4px;
-            color: #4fc3f7;
-        }
-
-        .message.assistant pre code {
-            background: none;
-            padding: 0;
-            color: #a5d6a7;
-        }
-
-        .message.assistant p {
-            margin-bottom: 8px;
-        }
-
-        .message.assistant strong {
-            color: #4fc3f7
-        }
-
-        code { font-family: 'Courier New', monospace; }
-
-        #thinking {
-            display: none;
-            align-self: flex-start;
-            padding: 12px 16px;
-            color: #4fc3f7;
-            font-size: 12px;
-            letter-spacing: 1px;
-            animation: blink 1.5s infinite;
-        }
-
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
-
-        #footer {
-            padding: 12px 20px;
-            background: #0d0d1a;
-            border-top: 1px solid #1a3a5c;
-            font-size: 10px;
-            color: #37474f;
-            letter-spacing: 1px;
-            text-align: center;
-        }
-
-        #input-area {
-            padding:12px 20px;
-            background: #0d0d1a;
-            border-top: 1px solid #1a3a5c;
-            display: flex;
-            gap: 10px;
-            align-items: flex-end;
-        }
-
-        #userInput {
-            flex: 1;
-            background: #111827;
-            border: 1px solid #1a3a5c;
-            border-radius: 8px;
-            color: #e0e0e0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            font-size: 13px;
-            padding: 10px 12px;
-            resize: none;
-            outline: none;
-            line-height: 1.5;
-        }
-
-        #userInput:focus {
-            border-color: #4fc3f7;
-            box-shadow: 0 0 8px rgba(79, 195, 247, 0.2);
-        }
-
-        #sendBtn {
-            background: #0288d1;
-            border: none;
-            border-radius: 8px;
-            color: white;
-            cursor: pointer;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 2px;
-            padding: 10px 16px;
-            transition: background 0.2s;
-        }
-
-        #sendBtn:hover {
-            background: #3fc3f7;
-            box-shadow: 0 0 12px rgba(79, 195, 247, 0.4);
-        }
-    </style>
 </head>
 <body>
     <div id="header">
@@ -460,12 +257,15 @@ Keep responses concise but thorough. Format code with proper markdown code block
 
     <div id="thinking">⬡ PROCESSING...</div>
 
-    <div id = "input-area">
-        <textarea
-            id = "userInput"
-            placeholder = "Ask JARVIS anything, sir..."
-            rows = "3"
-        ></textarea>
+    <div id="input-area">
+        <div id="input-wrapper">
+            <textarea
+                id="userInput"
+                placeholder="Ask JARVIS anything, sir..."
+                rows="3"
+            ></textarea>
+            <div id="tokenCounter">0 tokens</div>
+        </div>
         <button id="sendBtn">SEND</button>
     </div>
 
@@ -474,86 +274,7 @@ Keep responses concise but thorough. Format code with proper markdown code block
     </div>
 
     <script src="${markedUri}"></script>
-
-    <script>
-
-        console.log('SCRIPT is running!');
-        console.log('sendBtn element:', document.getElementById('sendBtn'));
-        
-        // Aquire once at the top - never call this more than once
-        const vscode = acquireVsCodeApi();
-        const messagesDiv = document.getElementById('messages');
-        const thinkingDiv = document.getElementById('thinking');
-
-        window.addEventListener('message', event => {
-            const message = event.data;
-
-            if (message.command === 'addMessage') {
-                const div = document.createElement('div');
-                div.className = 'message ' + message.role;
-
-                const label = document.createElement('div');
-                label.className = 'role-label';
-                label.textContent = message.role == 'user' ? 'YOU':
-                                    message.role === 'error' ? 'ERROR': 'JARVIS';
-                
-                const content = document.createElement('div');
-                if (message.role === 'assistant') {
-                    // Render markdown for JARVIS responses (code blocks, bold, etc.)
-                    content.innerHTML = marked.parse(message.content);    
-                } else {
-                    // Keep user messages and errors as plain text (safer, no markdown needed)
-                    content.textContent = message.content;    
-                }
-                
-
-                div.appendChild(label);
-                div.appendChild(content);
-                messagesDiv.appendChild(div);
-                messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            }
-
-            if (message.command === 'setThinking') {
-                thinkingDiv.style.display = message.value ? 'block' : 'none';
-                if (message.value) {
-                    messagesDiv.appendChild(thinkingDiv);
-                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                }
-            }
-        });
-
-        // Handle send button click
-        document.getElementById('sendBtn').addEventListener('click', sendMessage);
-
-        // Handle Enter key (Shift+Enter for new line)
-        document.getElementById('userInput').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
-
-        function sendMessage() {
-
-            alert('sendMessage was called!'); // temporary debug line
-
-            const input = document.getElementById('userInput');
-            const text = input.value.trim();
-
-            if (!text) return;
-
-            console.log('JARVIS: Sending message:', text);
-
-            // Send to TypeScript backend
-            vscode.postMessage({
-                command: 'userMessage',
-                text: text
-            });
-
-            // Clear input
-            input.value = '';
-        }
-    </script>
+    <script src="${mainUri}"></script>
 </body>
 </html>`;
     }
