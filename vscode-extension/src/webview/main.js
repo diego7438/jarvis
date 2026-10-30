@@ -83,6 +83,11 @@ window.addEventListener('message', event => {
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
     }
+
+    document.getElementById('stopBtn')?.addEventListener('click', () => {
+        console.log('JARVIS: Stop button clicked');
+        vscode.postMessage({ command: 'stopRequest' });
+    });
 });
 
 // Everything below runs once, when the page first loads

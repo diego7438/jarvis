@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 
 export class JarvisPanel {
 
@@ -8,7 +9,8 @@ export class JarvisPanel {
     private readonly _extensionUri: vscode.Uri;
     private _conversationHistory: { role: string; content: string }[] = [];
     private _disposables: vscode.Disposable[] = [];
-    
+    private _abortController: AbortController | undefined;
+
     // The JARVIS persona, what makes the agent feel realistic
     private readonly _systemPrompt = `You are JARVIS (Just A Rather Very Intelligent System),
 the highly advanced, natural-language artificial intelligence assistant. You are witty, precise, and highly capable.
@@ -56,6 +58,10 @@ Keep responses concise but thorough. Format code with proper markdown code block
 
                 if (message.command === 'userMessage') {
                     await this.askFreeform(message.text);
+                }
+
+                if (message.command === 'stopRequest') {
+                    this.cancelRequest();
                 }
             },
             null,
@@ -159,10 +165,12 @@ Keep responses concise but thorough. Format code with proper markdown code block
             value: true
         });
 
+        this._abortController = new AbortController();
         try {
             const response = await fetch('http://127.0.0.1:8080/v1/chat/completions', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
+                signal: this._abortController.signal,
                 body: JSON.stringify({
                     model: 'llama',
                     messages: [
@@ -172,36 +180,132 @@ Keep responses concise but thorough. Format code with proper markdown code block
                     max_tokens: 1024
                 })
             });
-
+            
             const data = await response.json() as {
-                choices: { message: { content: string }}[]
+                choices: { message: { content: string } }[]
             };
-
+            
             const answer = data.choices[0].message.content;
-
             this._conversationHistory.push({
                 role: 'assistant',
                 content: answer
             });
-
             this._panel.webview.postMessage({
                 command: 'addMessage',
                 role: 'assistant',
                 content: answer
             });
-
         } catch (error) {
-            console.error('JARVIS fetch error:', error);
-            this._panel.webview.postMessage({
-                command: 'addMessage',
-                role: 'error',
-                content: 'Cannot reach local server. Is llama-server running on port 8080?'
-            });
+            // Check if this was a user-initiated cancellation vs a real error
+            if (error instanceof Error && error.name === 'AbortError') {
+                console.log('JARVIS: Request was cancelled by user');
+                this._panel.webview.postMessage({
+                    command: 'addMessage',
+                    role: 'error',
+                    content: 'Request cancelled, sir.'
+                });
+            } else {
+                console.error('JARVIS fetch error:', error);
+                this._panel.webview.postMessage({
+                    command: 'addMessage',
+                    role: 'error',
+                    content: 'Cannot reach local server. Is llama-server running on port 8080?'
+                });
+            }
         } finally {
             this._panel.webview.postMessage({
                 command: 'setThinking',
                 value: false
             });
+            this._abortController = undefined;
+        }
+    }
+
+    public async askAboutFile(fileContent: string, fileName: string) {
+        // 1. reveal the panel (same call as in ask())
+        
+        // Reveal the panel
+        this._panel.reveal(vscode.ViewColumn.Beside);
+
+        // 2. build userPrompt as a BACKTICK string containing fileName and fileContent
+        const userPrompt = `Here is the fulle contents of ${fileName}:\n\n${fileContent}\n\nWhat can you tell me about this file?`;
+        
+        // 3. push { role: 'user', content: userPrompt } to history
+        // Add user message to history
+        this._conversationHistory.push({
+            role: 'user',
+            content: userPrompt
+        });
+        
+        // 4. postMessage addMessage / role 'user' / content: `[Sent entire file: ${fileName}]`
+        this._panel.webview.postMessage({
+            command: 'addMessage',
+            role: 'user',
+            content: `[Sent entire file: ${fileName}]`
+        });
+        
+        // 5. postMessage setThinking true
+        this._panel.webview.postMessage({
+            command: 'setThinking',
+            value: true
+        });
+
+        // 6. this._abortController = new AbortController();
+        this._abortController = new AbortController();
+
+        // 7. try / catch / finally, identical to askFreeform's
+        try {
+            const response = await fetch('http://127.0.0.1:8080/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                signal: this._abortController.signal,
+                body: JSON.stringify({
+                    model: 'llama',
+                    messages: [
+                        { role: 'system', content: this._systemPrompt },
+                        ...this._conversationHistory
+                    ],
+                    max_tokens: 1024
+                })
+            });
+            
+            const data = await response.json() as {
+                choices: { message: { content: string } }[]
+            };
+            
+            const answer = data.choices[0].message.content;
+            this._conversationHistory.push({
+                role: 'assistant',
+                content: answer
+            });
+            this._panel.webview.postMessage({
+                command: 'addMessage',
+                role: 'assistant',
+                content: answer
+            });
+        } catch (error) {
+            // Check if this was a user-initiated cancellation vs a real error
+            if (error instanceof Error && error.name === 'AbortError') {
+                console.log('JARVIS: Request was cancelled by user');
+                this._panel.webview.postMessage({
+                    command: 'addMessage',
+                    role: 'error',
+                    content: 'Request cancelled, sir.'
+                });
+            } else {
+                console.error('JARVIS fetch error:', error);
+                this._panel.webview.postMessage({
+                    command: 'addMessage',
+                    role: 'error',
+                    content: 'Cannot reach local server. Is llama-server running on port 8080?'
+                });
+            }
+        } finally {
+            this._panel.webview.postMessage({
+                command: 'setThinking',
+                value: false
+            });
+            this._abortController = undefined;
         }
     }
 
@@ -211,71 +315,39 @@ Keep responses concise but thorough. Format code with proper markdown code block
         this._panel.dispose();
         while (this._disposables.length) {
             const disposable = this._disposables.pop();
-            if (disposable) {disposable.dispose();}
+            if (disposable) { disposable.dispose(); }
+        }
+    }
+
+    public cancelRequest() {
+        if (this._abortController) {
+            this._abortController.abort();
         }
     }
 
     // The entire chat UI
     private _getHtmlContent(): string {
-        const markedUri = this._panel.webview.asWebviewUri(
-            vscode.Uri.joinPath(this._extensionUri, 'node_modules', 'marked', 'lib', 'marked.umd.js')
-        );
-        const mainUri = this._panel.webview.asWebviewUri(
-            vscode.Uri.joinPath(this._extensionUri, 'src', 'webview', 'main.js')
-        );
-        const stylesUri = this._panel.webview.asWebviewUri(
-            vscode.Uri.joinPath(this._extensionUri, 'src', 'webview', 'styles.css')
-        );
+        const webview = this._panel.webview;
+        const webviewDir = vscode.Uri.joinPath(this._extensionUri, 'src', 'webview');
 
-        return `<!DOCTYPE html>
-    
-<html lang="en">
-<head>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ${this._panel.webview.cspSource}; style-src 'unsafe-inline' ${this._panel.webview.cspSource}; connect-src http://127.0.0.1:8080;">
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JARVIS</title>
-    <link rel="stylesheet" href="${stylesUri}">
+        const values: Record<string, string> = {
+            CSP_SOURCE: webview.cspSource,
+            STYLES_URI: webview.asWebviewUri(vscode.Uri.joinPath(webviewDir, 'styles.css')).toString(),
+            MARKED_URI: webview.asWebviewUri(
+                vscode.Uri.joinPath(this._extensionUri, 'node_modules', 'marked', 'lib', 'marked.umd.js')
+            ).toString(),
+            MAIN_URI: webview.asWebviewUri(vscode.Uri.joinPath(webviewDir, 'main.js')).toString(),
+        };
 
-</head>
-<body>
-    <div id="header">
-        <div class = "arc-reactor"></div>
-        <div>
-            <h1>J.A.R.V.I.S.</h1>
-            <div class="subtitle">JUST A RATHER VERY INTELLIGENT SYSTEM</div>
-        </div>
-    </div>
+        const templatePath = vscode.Uri.joinPath(webviewDir, 'template.html').fsPath;
+        const template = fs.readFileSync(templatePath, 'utf8');
 
-    <div id="messages">
-        <div class="message assistant">
-            <div class="role-label">JARVIS</div>
-            Good day sir. I am online and awaiting your command.
-            Highlight any code in your editor and right-click to consult me.
-        </div>
-    </div>
+        return template.replace(/\{\{(\w+)\}\}/g, (match, key) => values[key] ?? match);
 
-    <div id="thinking">⬡ PROCESSING...</div>
-
-    <div id="input-area">
-        <div id="input-wrapper">
-            <textarea
-                id="userInput"
-                placeholder="Ask JARVIS anything, sir..."
-                rows="3"
-            ></textarea>
-            <div id="tokenCounter">0 tokens</div>
-        </div>
-        <button id="sendBtn">SEND</button>
-    </div>
-
-    <div id="footer">
-        🔒 100% LOCAL · ZERO DATA TRANSMISSION · METAL GPU ACCELERATED
-    </div>
-
-    <script src="${markedUri}"></script>
-    <script src="${mainUri}"></script>
-</body>
-</html>`;
     }
 }
+
+
+
+/* Fix later:
+*/

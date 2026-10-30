@@ -20,6 +20,10 @@
       {
         "command": "jarvis.open",
         "title": "Open JARVIS"
+      },
+      {
+        "command": "jarvis.askAboutFile",
+        "title": "Ask JARVIS About This File"
       }
     ],
     "menus": {
@@ -27,6 +31,10 @@
         {
           "command": "jarvis.ask",
           "when": "editorHasSelection",
+          "group": "navigation"
+        },
+        {
+          "command": "jarvis.askAboutFile",
           "group": "navigation"
         }
       ]
